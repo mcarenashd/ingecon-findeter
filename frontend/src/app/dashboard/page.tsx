@@ -12,15 +12,15 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <KPICard
-          label="Contratos de Obra"
-          value="2"
-          subtitle="Activos"
+          label="Proyectos de Obra"
+          value="4"
+          subtitle="Supervisados"
           color="blue"
         />
         <KPICard
-          label="Valor Total Obra"
-          value="$4.462M"
-          subtitle="COP"
+          label="Valor Interventoría"
+          value="$4.407M"
+          subtitle="COP — Precio Global Fijo"
           color="green"
         />
         <KPICard
