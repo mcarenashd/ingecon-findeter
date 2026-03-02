@@ -2,7 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.contrato import ContratoInterventoria, ContratoObra, Hito
+from app.models.contrato import (
+    ActividadNoPrevista,
+    ContratoInterventoria,
+    ContratoObra,
+    Hito,
+)
+from app.schemas.actividad_no_prevista import (
+    ActividadNoPrevistaCreate,
+    ActividadNoPrevistaResponse,
+    ActividadNoPrevistaUpdate,
+)
 from app.schemas.contrato import (
     ContratoInterventoriaCreate,
     ContratoInterventoriaResponse,
@@ -105,3 +115,64 @@ def crear_hito(contrato_id: int, data: HitoCreate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(hito)
     return hito
+
+
+# --- Actividades No Previstas ---
+
+
+@router.get(
+    "/obra/{contrato_id}/actividades-no-previstas",
+    response_model=list[ActividadNoPrevistaResponse],
+)
+def listar_actividades_no_previstas(contrato_id: int, db: Session = Depends(get_db)):
+    contrato = db.get(ContratoObra, contrato_id)
+    if not contrato:
+        raise HTTPException(status_code=404, detail="Contrato de obra no encontrado")
+    return (
+        db.query(ActividadNoPrevista)
+        .filter(ActividadNoPrevista.contrato_obra_id == contrato_id)
+        .order_by(ActividadNoPrevista.codigo)
+        .all()
+    )
+
+
+@router.post(
+    "/obra/{contrato_id}/actividades-no-previstas",
+    response_model=ActividadNoPrevistaResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def crear_actividad_no_prevista(
+    contrato_id: int, data: ActividadNoPrevistaCreate, db: Session = Depends(get_db)
+):
+    contrato = db.get(ContratoObra, contrato_id)
+    if not contrato:
+        raise HTTPException(status_code=404, detail="Contrato de obra no encontrado")
+    actividad = ActividadNoPrevista(
+        contrato_obra_id=contrato_id,
+        **data.model_dump(),
+    )
+    db.add(actividad)
+    db.commit()
+    db.refresh(actividad)
+    return actividad
+
+
+@router.patch(
+    "/obra/{contrato_id}/actividades-no-previstas/{actividad_id}",
+    response_model=ActividadNoPrevistaResponse,
+)
+def actualizar_actividad_no_prevista(
+    contrato_id: int,
+    actividad_id: int,
+    data: ActividadNoPrevistaUpdate,
+    db: Session = Depends(get_db),
+):
+    actividad = db.get(ActividadNoPrevista, actividad_id)
+    if not actividad or actividad.contrato_obra_id != contrato_id:
+        raise HTTPException(status_code=404, detail="Actividad no prevista no encontrada")
+    update_data = data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(actividad, field, value)
+    db.commit()
+    db.refresh(actividad)
+    return actividad

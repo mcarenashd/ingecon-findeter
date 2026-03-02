@@ -71,6 +71,10 @@ class ContratoObra(Base):
     informes_semanales: Mapped[list["InformeSemanal"]] = relationship(
         back_populates="contrato_obra"
     )
+    actividades_no_previstas: Mapped[list["ActividadNoPrevista"]] = relationship(
+        back_populates="contrato_obra"
+    )
+    fotos: Mapped[list["Foto"]] = relationship(back_populates="contrato_obra")
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -105,5 +109,21 @@ class Hito(Base):
         return 0
 
 
-# Forward reference for relationship
+class ActividadNoPrevista(Base):
+    __tablename__ = "actividades_no_previstas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contrato_obra_id: Mapped[int] = mapped_column(ForeignKey("contratos_obra.id"))
+    codigo: Mapped[str] = mapped_column(String(20))  # e.g. "NP-01"
+    descripcion: Mapped[str] = mapped_column(Text)
+    fecha_programada: Mapped[date | None] = mapped_column(Date, nullable=True)
+    fecha_real: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    contrato_obra: Mapped["ContratoObra"] = relationship(
+        back_populates="actividades_no_previstas"
+    )
+
+
+# Forward references
+from app.models.foto import Foto  # noqa: E402
 from app.models.informe import InformeSemanal  # noqa: E402
