@@ -178,12 +178,21 @@ Field personnel in Bosa parks may lack internet connectivity. The application **
 - All documents require digital signature from the Director and VoBo from the Supervisor
 - Full audit trail is mandatory — who created, modified, and approved every document
 
-### Current Project Parks
+### Supervised Projects (4 projects under contract FDT-ATBOSA-I-028-2025)
 
-| Park | Contract | Key Detail |
-|------|----------|-----------|
-| La Esperanza 7-236 | 20 milestones | 147 days behind on Preliminares |
-| Piamonte 7-145 | 20 milestones | Active execution |
+| # | Project | Scope | Term | Status |
+|---|---------|-------|------|--------|
+| 1 | Puentes Vehiculares y Peatonales | Conservation of vehicular/pedestrian bridges over water bodies and cycling infrastructure | 10 months (E1: 2m, E2: 8m) | Stage I — Studies & Design |
+| 2 | Espacio Público | Conservation of public space in Bosa | 12 months (E1: 2m, E2: 10m) | Stage I — Studies & Design |
+| 3 | Malla Vial | Construction and rehabilitation/conservation of road network and associated public space | 12 months (E1: 2m, E2: 10m) | Stage I — Studies & Design |
+| 4 | Parques y Espacio Público | Construction of parks and associated public space (CTO 703-2024) | 10 months (E1: 1m, E2: 9m) | Stage II — Execution |
+
+**Project 4 — Parks** (the only one with reference data in `docs/`):
+
+| Park | Milestones | Key Detail |
+|------|-----------|-----------|
+| La Esperanza 7-236 | 20 hitos | 147 days behind on Preliminares |
+| Piamonte 7-145 | 20 hitos | Active execution |
 
 ---
 
