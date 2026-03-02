@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ingecon
+      POSTGRES_PASSWORD: ingecon
+      POSTGRES_DB: ingecon_findeter
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://ingecon:ingecon@db:5432/ingecon_findeter
+      SECRET_KEY: dev-secret-key-change-in-prod
+      CORS_ORIGINS: '["http://localhost:3000"]'
+    depends_on:
+      - db
+    volumes:
+      - ./backend/app:/code/app
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
