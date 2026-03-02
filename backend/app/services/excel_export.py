@@ -125,14 +125,14 @@ def _set_cell(ws, row, col, value, font=None, fill=None, alignment=None, border=
 
 
 def _merge_and_set(ws, row_start, row_end, col_start, col_end, value,
-                   font=None, fill=None, alignment=None, border=None):
+                   font=None, fill=None, alignment=None, border=None, number_format=None):
     """Merge a range and set the top-left cell."""
     ws.merge_cells(
         start_row=row_start, start_column=col_start,
         end_row=row_end, end_column=col_end,
     )
     _set_cell(ws, row_start, col_start, value, font=font, fill=fill, alignment=alignment,
-              border=border)
+              border=border, number_format=number_format)
     # Apply border to all cells in the merged range
     if border:
         for r in range(row_start, row_end + 1):
@@ -175,10 +175,13 @@ def _build_header(ws, informe: InformeSemanal, contrato_obra: ContratoObra) -> i
     # Logo (if available)
     logo_path = ASSETS_DIR / "logo_findeter.jpg"
     if logo_path.exists():
-        img = XlImage(str(logo_path))
-        img.width = 251
-        img.height = 101
-        ws.add_image(img, "A2")
+        try:
+            img = XlImage(str(logo_path))
+            img.width = 251
+            img.height = 101
+            ws.add_image(img, "A2")
+        except Exception:
+            pass  # Logo not available or corrupt — skip
 
     # Title
     ws.merge_cells("C4:K5")
@@ -372,7 +375,7 @@ def _build_s1(ws, informe: InformeSemanal, contrato_obra: ContratoObra,
 
 
 def _build_s2(ws, informe: InformeSemanal, snapshots: list[SnapshotHito],
-              start_row: int) -> int:
+              start_row: int, contrato_obra: ContratoObra | None = None) -> int:
     """Section 2 — Control de Hitos. Returns next available row."""
     row = start_row + 1  # blank row separator
 
@@ -889,7 +892,7 @@ def generate_informe_excel(
     # Build sections
     row = _build_header(ws, informe, contrato_obra)
     row = _build_s1(ws, informe, contrato_obra, contrato_interv)
-    row = _build_s2(ws, informe, snapshots, row)
+    row = _build_s2(ws, informe, snapshots, row, contrato_obra=contrato_obra)
     row = _build_s3(ws, informe, row)
     row = _build_s4(ws, informe, all_acciones, row)
     row = _build_s5(ws, informe, actividades_np, row)

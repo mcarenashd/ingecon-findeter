@@ -24,7 +24,7 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     nombre_completo: Mapped[str] = mapped_column(String(255))
     hashed_password: Mapped[str] = mapped_column(String(255))
-    rol: Mapped[RolUsuario] = mapped_column(Enum(RolUsuario))
+    rol: Mapped[RolUsuario] = mapped_column(Enum(RolUsuario, values_callable=lambda e: [m.value for m in e]))
     activo: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

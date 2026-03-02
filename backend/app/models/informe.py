@@ -32,7 +32,8 @@ class InformeSemanal(Base):
     semana_inicio: Mapped[date] = mapped_column(Date)
     semana_fin: Mapped[date] = mapped_column(Date)
     estado: Mapped[EstadoInforme] = mapped_column(
-        Enum(EstadoInforme), default=EstadoInforme.BORRADOR
+        Enum(EstadoInforme, values_callable=lambda e: [m.value for m in e]),
+        default=EstadoInforme.BORRADOR,
     )
 
     # Sección 2 - Indicadores (calculados automáticamente)
@@ -109,7 +110,7 @@ class SnapshotHito(Base):
     descripcion: Mapped[str] = mapped_column(Text)
     fecha_programada: Mapped[date] = mapped_column(Date)
     fecha_real: Mapped[date | None] = mapped_column(Date, nullable=True)
-    estado: Mapped[EstadoHito] = mapped_column(Enum(EstadoHito))
+    estado: Mapped[EstadoHito] = mapped_column(Enum(EstadoHito, values_callable=lambda e: [m.value for m in e]))
     avance_porcentaje: Mapped[Decimal] = mapped_column(Numeric(5, 2))
     dias_retraso: Mapped[int] = mapped_column(Integer, default=0)
 
@@ -146,7 +147,8 @@ class AccionPlan(Base):
     fecha_programada: Mapped[date] = mapped_column(Date)
     fecha_cumplimiento: Mapped[date | None] = mapped_column(Date, nullable=True)
     estado: Mapped[EstadoPlanAccion] = mapped_column(
-        Enum(EstadoPlanAccion), default=EstadoPlanAccion.PENDIENTE
+        Enum(EstadoPlanAccion, values_callable=lambda e: [m.value for m in e]),
+        default=EstadoPlanAccion.PENDIENTE,
     )
     observaciones: Mapped[str | None] = mapped_column(Text, nullable=True)
 

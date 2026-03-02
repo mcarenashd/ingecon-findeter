@@ -160,6 +160,24 @@ export interface ActividadNoPrevista {
   fecha_real: string | null;
 }
 
+// --- Usuarios ---
+export type RolUsuario =
+  | "director_interventoria"
+  | "residente_tecnico"
+  | "residente_sst"
+  | "residente_ambiental"
+  | "residente_social"
+  | "residente_administrativo"
+  | "supervisor";
+
+export interface Usuario {
+  id: number;
+  email: string;
+  nombre_completo: string;
+  rol: RolUsuario;
+  activo: boolean;
+}
+
 // --- Curva S ---
 export interface CurvaSDataPoint {
   semana: number;

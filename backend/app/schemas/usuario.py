@@ -20,6 +20,14 @@ class UsuarioResponse(UsuarioBase):
     model_config = {"from_attributes": True}
 
 
+class UsuarioUpdate(BaseModel):
+    email: str | None = None
+    nombre_completo: str | None = None
+    rol: RolUsuario | None = None
+    activo: bool | None = None
+    password: str | None = None
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

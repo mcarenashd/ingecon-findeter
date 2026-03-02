@@ -29,7 +29,10 @@ class Foto(Base):
 
     # Metadata
     pie_de_foto: Mapped[str | None] = mapped_column(Text, nullable=True)
-    tipo: Mapped[TipoFoto] = mapped_column(Enum(TipoFoto), default=TipoFoto.GENERAL)
+    tipo: Mapped[TipoFoto] = mapped_column(
+        Enum(TipoFoto, values_callable=lambda e: [m.value for m in e]),
+        default=TipoFoto.GENERAL,
+    )
     fecha_toma: Mapped[date] = mapped_column(Date)
     latitud: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
     longitud: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)

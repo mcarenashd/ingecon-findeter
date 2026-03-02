@@ -91,7 +91,8 @@ class Hito(Base):
     fecha_programada: Mapped[date] = mapped_column(Date)
     fecha_real: Mapped[date | None] = mapped_column(Date, nullable=True)
     estado: Mapped[EstadoHito] = mapped_column(
-        Enum(EstadoHito), default=EstadoHito.NO_INICIADO
+        Enum(EstadoHito, values_callable=lambda e: [m.value for m in e]),
+        default=EstadoHito.NO_INICIADO,
     )
     avance_porcentaje: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=0)
 
