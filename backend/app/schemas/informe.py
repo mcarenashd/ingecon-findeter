@@ -130,3 +130,19 @@ class InformeSemanalResponse(BaseModel):
 
 class InformeSemanalDetailResponse(InformeSemanalResponse):
     snapshot_hitos: list[SnapshotHitoResponse] = []
+
+
+# --- Curva S ---
+
+
+class CurvaSDataPoint(BaseModel):
+    semana: int
+    semana_fin: date
+    programado: Decimal
+    ejecutado: Decimal
+
+
+class CurvaSResponse(BaseModel):
+    contrato_obra_id: int
+    contrato_numero: str
+    datos: list[CurvaSDataPoint]

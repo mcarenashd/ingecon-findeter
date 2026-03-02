@@ -3,6 +3,51 @@ export type EstadoPlanAccion = "pendiente" | "en_proceso" | "cumplido" | "vencid
 export type EstadoHito = "no_iniciado" | "en_proceso" | "cumplido" | "vencido";
 export type TipoFoto = "avance" | "sst" | "ambiental" | "social" | "general";
 
+// --- Dashboard ---
+export interface HitoResumen {
+  id: number;
+  contrato_numero: string;
+  descripcion: string;
+  fecha_programada: string;
+  dias_retraso: number;
+  estado: EstadoHito;
+  avance_porcentaje: string;
+}
+
+export interface DashboardData {
+  total_contratos_obra: number;
+  valor_total_obra: string;
+  hitos_en_retraso: HitoResumen[];
+  total_informes_pendientes: number;
+  avance_fisico_general: string;
+}
+
+// --- Contratos ---
+export interface ContratoInterventoria {
+  id: number;
+  numero: string;
+  objeto: string;
+  valor_inicial: string;
+  valor_actualizado: string;
+  plazo_dias: number;
+  fecha_inicio: string;
+  fecha_terminacion: string;
+  contratista: string;
+  supervisor: string;
+}
+
+export interface Hito {
+  id: number;
+  contrato_obra_id: number;
+  numero: number;
+  descripcion: string;
+  fecha_programada: string;
+  fecha_real: string | null;
+  estado: EstadoHito;
+  avance_porcentaje: string;
+  dias_retraso: number;
+}
+
 export interface ContratoObra {
   id: number;
   contrato_interventoria_id: number;
@@ -15,6 +60,8 @@ export interface ContratoObra {
   plazo_dias: number;
   fecha_inicio: string;
   fecha_terminacion: string;
+  fecha_suspension: string | null;
+  fecha_reinicio: string | null;
 }
 
 export interface SnapshotHito {
@@ -111,4 +158,18 @@ export interface ActividadNoPrevista {
   descripcion: string;
   fecha_programada: string | null;
   fecha_real: string | null;
+}
+
+// --- Curva S ---
+export interface CurvaSDataPoint {
+  semana: number;
+  semana_fin: string;
+  programado: number;
+  ejecutado: number;
+}
+
+export interface CurvaSResponse {
+  contrato_obra_id: number;
+  contrato_numero: string;
+  datos: CurvaSDataPoint[];
 }

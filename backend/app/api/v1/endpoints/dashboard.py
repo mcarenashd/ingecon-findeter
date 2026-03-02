@@ -3,11 +3,13 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.contrato import ContratoObra, EstadoHito, Hito
-from app.models.informe import InformeSemanal
+from app.models.informe import EstadoInforme, InformeSemanal
+from app.schemas.informe import CurvaSDataPoint, CurvaSResponse
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -76,4 +78,58 @@ def obtener_dashboard(db: Session = Depends(get_db)):
         hitos_en_retraso=sorted(hitos_resumen, key=lambda h: h.dias_retraso, reverse=True),
         total_informes_pendientes=informes_pendientes,
         avance_fisico_general=avance,
+    )
+
+
+@router.get("/curva-s", response_model=CurvaSResponse)
+def obtener_curva_s_global(db: Session = Depends(get_db)):
+    """Retorna la Curva S del contrato con más informes aprobados."""
+    # Buscar el contrato con más informes no-borrador
+    subq = (
+        db.query(
+            InformeSemanal.contrato_obra_id,
+            func.count(InformeSemanal.id).label("cnt"),
+        )
+        .filter(InformeSemanal.estado != EstadoInforme.BORRADOR)
+        .group_by(InformeSemanal.contrato_obra_id)
+        .order_by(func.count(InformeSemanal.id).desc())
+        .first()
+    )
+
+    if not subq:
+        # Sin informes → retornar respuesta vacía con datos del primer contrato
+        contrato = db.query(ContratoObra).first()
+        return CurvaSResponse(
+            contrato_obra_id=contrato.id if contrato else 0,
+            contrato_numero=contrato.numero if contrato else "",
+            datos=[],
+        )
+
+    contrato_id = subq[0]
+    contrato = db.get(ContratoObra, contrato_id)
+
+    informes = (
+        db.query(InformeSemanal)
+        .filter(
+            InformeSemanal.contrato_obra_id == contrato_id,
+            InformeSemanal.estado != EstadoInforme.BORRADOR,
+        )
+        .order_by(InformeSemanal.numero_informe)
+        .all()
+    )
+
+    datos = [
+        CurvaSDataPoint(
+            semana=inf.numero_informe,
+            semana_fin=inf.semana_fin,
+            programado=inf.avance_fisico_programado,
+            ejecutado=inf.avance_fisico_ejecutado,
+        )
+        for inf in informes
+    ]
+
+    return CurvaSResponse(
+        contrato_obra_id=contrato.id,
+        contrato_numero=contrato.numero,
+        datos=datos,
     )

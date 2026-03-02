@@ -113,7 +113,7 @@ export default function InformeDetallePage() {
   const handleExportExcel = async () => {
     try {
       const blob = await apiDownload(
-        `/api/v1/informes/semanales/${informeId}/exportar?formato=xlsx`
+        `/api/v1/informes/semanales/${informeId}/exportar`
       );
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -122,7 +122,7 @@ export default function InformeDetallePage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError("Error al exportar. El motor de Excel aún no está implementado.");
+      setError("Error al exportar el informe a Excel.");
     }
   };
 

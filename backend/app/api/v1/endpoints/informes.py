@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -13,6 +14,8 @@ from app.models.informe import (
 )
 from app.schemas.foto import InformeFotoCreate, InformeFotoResponse, InformeFotoUpdate
 from app.schemas.informe import (
+    CurvaSDataPoint,
+    CurvaSResponse,
     InformeGenerarRequest,
     InformeSemanalDetailResponse,
     InformeSemanalListResponse,
@@ -103,6 +106,42 @@ def generar_todos_informes(
         except ValueError:
             continue  # Ya existe para este contrato/semana
     return informes_creados
+
+
+# --- Curva S ---
+
+
+@router.get("/semanales/curva-s/{contrato_obra_id}", response_model=CurvaSResponse)
+def obtener_curva_s(contrato_obra_id: int, db: Session = Depends(get_db)):
+    contrato = db.get(ContratoObra, contrato_obra_id)
+    if not contrato:
+        raise HTTPException(status_code=404, detail="Contrato de obra no encontrado")
+
+    informes = (
+        db.query(InformeSemanal)
+        .filter(
+            InformeSemanal.contrato_obra_id == contrato_obra_id,
+            InformeSemanal.estado != EstadoInforme.BORRADOR,
+        )
+        .order_by(InformeSemanal.numero_informe)
+        .all()
+    )
+
+    datos = [
+        CurvaSDataPoint(
+            semana=inf.numero_informe,
+            semana_fin=inf.semana_fin,
+            programado=inf.avance_fisico_programado,
+            ejecutado=inf.avance_fisico_ejecutado,
+        )
+        for inf in informes
+    ]
+
+    return CurvaSResponse(
+        contrato_obra_id=contrato.id,
+        contrato_numero=contrato.numero,
+        datos=datos,
+    )
 
 
 # --- CRUD ---
@@ -401,3 +440,28 @@ def eliminar_foto_informe(
 
     db.delete(informe_foto)
     db.commit()
+
+
+# --- Exportación Excel ---
+
+
+@router.get("/semanales/{informe_id}/exportar")
+def exportar_informe_excel(informe_id: int, db: Session = Depends(get_db)):
+    informe = _get_informe_or_404(informe_id, db)
+
+    from app.services.excel_export import generate_informe_excel
+
+    buffer = generate_informe_excel(db=db, informe=informe)
+
+    contrato = informe.contrato_obra
+    filename = (
+        f"Informe_Semanal_No{informe.numero_informe}"
+        f"_CTO_{contrato.numero}"
+        f"_{informe.semana_inicio.isoformat()}.xlsx"
+    )
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

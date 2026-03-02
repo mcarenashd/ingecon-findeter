@@ -7,7 +7,7 @@
 
 ## Resumen Ejecutivo
 
-El proyecto está en una **fase de scaffolding inicial**. Se creó la estructura base del backend (FastAPI) y frontend (Next.js) con modelos de datos principales, endpoints CRUD básicos y páginas placeholder. **No hay migraciones de base de datos ejecutadas, no hay datos seed, no hay tests, y las páginas del frontend son estáticas (sin conexión real al API).**
+El proyecto tiene **backend funcional con 10 modelos de datos, migración Alembic, seed data, y ~30 endpoints API** incluyendo el módulo completo de Informe Semanal (generación automática, edición por secciones, transiciones de estado, snapshots de hitos, banco de fotos, y plan de acción acumulativo). **Motor de exportación Excel GES-FO-016** completamente funcional. El **frontend tiene login con JWT, dashboard conectado al API, contratos con detalle/hitos, y 7 tabs de informe semanal**. Falta: tests, Curva S, exportación PDF, y CRUD de usuarios.
 
 ---
 
@@ -22,29 +22,40 @@ El proyecto está en una **fase de scaffolding inicial**. Se creó la estructura
 | Frontend Dockerfile | Listo | Node 22-alpine, next dev |
 | `.env.example` | Listo | Backend y Frontend |
 | `.gitignore` | Listo | Python, Node, IDE files |
-| Alembic (config) | Parcial | `alembic.ini` y `env.py` existen, pero **0 migraciones generadas** |
+| Alembic (config) | Listo | `alembic.ini`, `env.py`, migración `001_initial.py` con 10 tablas |
+| Seed data | Listo | `backend/app/scripts/seed.py` — 7 usuarios, 1 contrato interventoría, 4 contratos de obra, 64 hitos, 22 actividades no previstas |
 | pyproject.toml | Listo | Dependencies: FastAPI, SQLAlchemy, Alembic, openpyxl, passlib, python-jose |
 | package.json | Listo | Next.js 16, React 19, Tailwind CSS 4 |
 
 ### 2. Backend (FastAPI) — `backend/app/`
 
-#### Modelos SQLAlchemy (`models/`)
+#### Modelos SQLAlchemy (`models/`) — 10 modelos
 
 | Modelo | Archivo | Campos principales | Relaciones |
 |--------|---------|-------------------|------------|
-| `ContratoInterventoria` | `contrato.py` | numero, objeto, valor_inicial, valor_actualizado, plazo_dias, fecha_inicio, fecha_terminacion, contratista, supervisor | → N contratos_obra |
-| `ContratoObra` | `contrato.py` | numero, objeto, contratista, valor_inicial, adiciones, valor_actualizado, plazo_dias, fechas (inicio/term/susp/reinicio) | → 1 contrato_interventoria, → N hitos, → N informes_semanales |
-| `Hito` | `contrato.py` | numero, descripcion, fecha_programada, fecha_real, estado (enum), avance_porcentaje | → 1 contrato_obra. Property `dias_retraso` calculada |
-| `InformeSemanal` | `informe.py` | numero_informe, semana_inicio/fin, estado (enum: borrador/en_revision/aprobado/radicado), avance_fisico_prog/ejec, valor_acum_prog/ejec, situaciones_problematicas, actividades_no_previstas, comentarios (tecnico/sst/ambiental/social) | → 1 contrato_obra |
-| `Usuario` | `usuario.py` | email, nombre_completo, hashed_password, rol (enum 7 roles), activo | Sin relaciones |
+| `Usuario` | `usuario.py` | email, nombre_completo, hashed_password, rol (7 roles), activo | — |
+| `ContratoInterventoria` | `contrato.py` | numero, objeto, valor_inicial, valor_actualizado, plazo_dias, fechas, contratista, supervisor | → N contratos_obra |
+| `ContratoObra` | `contrato.py` | numero, objeto, contratista, valores, plazo_dias, fechas (inicio/term/susp/reinicio) | → 1 contrato_interventoria, → N hitos, → N informes, → N fotos, → N actividades_np |
+| `Hito` | `contrato.py` | numero, descripcion, fecha_programada, fecha_real, estado (enum), avance_porcentaje | → 1 contrato_obra. Property `dias_retraso` |
+| `ActividadNoPrevista` | `contrato.py` | codigo (NP-01..NP-22), descripcion, fecha_programada, fecha_real | → 1 contrato_obra |
+| `Foto` | `foto.py` | archivo_nombre, archivo_path, archivo_size_bytes, pie_de_foto, tipo (5 tipos), fecha_toma, lat/long | → 1 contrato_obra, → N informe_fotos |
+| `InformeSemanal` | `informe.py` | numero_informe, semana_inicio/fin, estado (4 estados), avance fisico/financiero, comentarios S3/S5/S6, timestamps de transición | → 1 contrato_obra, → N snapshot_hitos, → N fotos_seleccionadas, → N acciones_plan |
+| `SnapshotHito` | `informe.py` | copia inmutable del hito al momento del corte semanal, dias_retraso | → 1 informe, → 1 hito |
+| `InformeFoto` | `informe.py` | tabla de unión informe↔foto, orden, pie_de_foto_override | → 1 informe, → 1 foto |
+| `AccionPlan` | `informe.py` | numero, actividad, responsable, fecha_programada, fecha_cumplimiento, estado, observaciones | → 1 informe_origen |
 
 #### Schemas Pydantic (`schemas/`)
 
-- `contrato.py` — Create/Response para ContratoInterventoria, ContratoObra, Hito
-- `informe.py` — Create/Update/Response para InformeSemanal
-- `usuario.py` — Create/Response para Usuario, Token, TokenPayload
+| Archivo | Schemas |
+|---------|---------|
+| `contrato.py` | Create/Response para ContratoInterventoria, ContratoObra, Hito |
+| `informe.py` | InformeGenerarRequest, UpdateS3/S5/S6×4, TransicionEstado, SnapshotHitoResponse, InformeSemanalList/Detail/Response |
+| `usuario.py` | Create/Response para Usuario, Token, TokenPayload |
+| `foto.py` | FotoCreate/Response, InformeFotoCreate/Update/Response |
+| `plan_accion.py` | AccionPlanCreate/Update/Response |
+| `actividad_no_prevista.py` | ActividadNoPrevistaCreate/Update/Response |
 
-#### Endpoints API (`api/v1/endpoints/`)
+#### Endpoints API (`api/v1/endpoints/`) — ~30 endpoints
 
 | Endpoint | Métodos | Funcionalidad |
 |----------|---------|--------------|
@@ -55,27 +66,67 @@ El proyecto está en una **fase de scaffolding inicial**. Se creó la estructura
 | `/api/v1/contratos/obra` | GET, POST | CRUD contratos de obra |
 | `/api/v1/contratos/obra/{id}` | GET | Detalle contrato de obra |
 | `/api/v1/contratos/obra/{id}/hitos` | GET, POST | CRUD hitos de un contrato |
-| `/api/v1/informes/semanales` | GET, POST | Listar/crear informes semanales |
-| `/api/v1/informes/semanales/{id}` | GET, PATCH | Detalle/actualizar informe semanal |
+| `/api/v1/contratos/obra/{id}/actividades-no-previstas` | GET, POST, PATCH | CRUD actividades no previstas |
+| `/api/v1/informes/semanales` | GET | Listar informes (filtros: contrato_obra_id, estado) |
+| `/api/v1/informes/semanales/{id}` | GET, PATCH | Detalle/actualizar informe |
+| `/api/v1/informes/semanales/generar` | POST | Generar borrador con snapshots e indicadores |
+| `/api/v1/informes/semanales/generar-todos` | POST | Generar borradores para todos los contratos activos |
+| `/api/v1/informes/semanales/{id}/seccion/s3` | PATCH | Editar situaciones problemáticas |
+| `/api/v1/informes/semanales/{id}/seccion/s5` | PATCH | Editar narrativa actividades no previstas |
+| `/api/v1/informes/semanales/{id}/seccion/s6-*` | PATCH ×4 | Editar comentarios técnico/SST/ambiental/social |
+| `/api/v1/informes/semanales/{id}/transicion` | POST | Cambiar estado (borrador→en_revision→aprobado→radicado) |
+| `/api/v1/informes/semanales/{id}/snapshot-hitos` | GET | Listar snapshots de hitos |
+| `/api/v1/informes/semanales/{id}/refresh-snapshot` | POST | Retomar snapshot (solo BORRADOR) |
+| `/api/v1/informes/semanales/{id}/fotos` | GET, POST, PATCH, DELETE | CRUD fotos del informe |
+| `/api/v1/informes/semanales/{id}/plan-accion` | GET, POST, PATCH, DELETE | CRUD plan de acción |
+| `/api/v1/fotos/upload` | POST | Upload multipart de fotos |
+| `/api/v1/fotos` | GET | Listar fotos por contrato/fecha/tipo |
+| `/api/v1/fotos/{id}` | GET | Detalle de foto |
+| `/api/v1/fotos/{id}/archivo` | GET | Servir archivo de imagen |
+| `/api/v1/fotos/{id}` | DELETE | Eliminar foto (si no está en informe aprobado) |
 | `/health` | GET | Health check |
+
+#### Servicios (`services/`)
+
+- `informe_generator.py` — Generación automática de borradores con snapshots de hitos, cálculo de indicadores, marcado de acciones vencidas, y pre-carga de fotos de la semana
 
 #### Core (`core/`)
 
-- `config.py` — Settings con pydantic-settings (DB URL, JWT secret, CORS)
-- `database.py` — Engine SQLAlchemy + SessionLocal + Base declarativa
+- `config.py` — Settings: DB URL, JWT, CORS, UPLOAD_DIR, MAX_UPLOAD_SIZE_MB, ALLOWED_IMAGE_TYPES
+- `database.py` — Engine SQLAlchemy + SessionLocal + Base
 - `security.py` — JWT create/verify + bcrypt hash/verify
+- `deps.py` — `get_current_user` (JWT dependency), `require_roles(*roles)`
 
 ### 3. Frontend (Next.js) — `frontend/src/`
 
 | Página/Componente | Archivo | Estado |
 |-------------------|---------|--------|
-| Layout principal | `app/layout.tsx` | Listo — Sidebar + contenido principal |
-| Sidebar | `components/Sidebar.tsx` | Listo — 3 links: Dashboard, Contratos, Informes |
+| Layout principal | `app/layout.tsx` | Listo — AuthProvider + AppShell + contenido principal |
+| AppShell | `components/AppShell.tsx` | Listo — Sidebar condicional (oculto en /login, visible autenticado) |
+| Sidebar | `components/Sidebar.tsx` | Listo — 3 links + info de usuario + botón logout |
+| Login | `app/login/page.tsx` | **Conectado al API** — Formulario email/password, JWT, redirect a /dashboard |
+| Auth Context | `lib/auth.tsx` | Listo — AuthProvider, JWT en localStorage, auto-redirect, `rolLabel()` |
 | Redirect raíz | `app/page.tsx` | Listo — Redirect a /dashboard |
-| Dashboard | `app/dashboard/page.tsx` | **Estático** — 4 KPI cards hardcoded, placeholders para Curva S y Semáforo de Hitos |
-| Contratos de Obra | `app/contratos/page.tsx` | **Estático** — Tabla con los 4 proyectos hardcoded (datos del contrato real) |
-| Informes Semanales | `app/informes/page.tsx` | **Estático** — Tabla vacía + listado de las 7 secciones del formato GES-FO-016 |
-| API client | `lib/api.ts` | Listo — Función `apiFetch` genérica con manejo de errores |
+| Dashboard | `app/dashboard/page.tsx` | **Conectado al API** — KPI cards dinámicos, hitos retrasados, avance general |
+| Contratos de Obra | `app/contratos/page.tsx` | **Conectado al API** — Tabla dinámica con valores, plazos, fechas |
+| Detalle Contrato | `app/contratos/[id]/page.tsx` | **Conectado al API** — Info del contrato, KPIs de hitos, tabla de hitos con avance |
+| Informes Semanales | `app/informes/page.tsx` | **Conectado al API** — Selector de contrato, filtro por estado, botón generar informe, tabla dinámica |
+| Detalle Informe | `app/informes/[id]/page.tsx` | **Conectado al API** — 7 tabs (S1-S7) con edición por sección, transiciones de estado |
+| EstadoBadge | `components/EstadoBadge.tsx` | Listo — Badges de color para estado informe/hito/plan |
+| API client | `lib/api.ts` | Listo — `apiFetch`, `apiUpload`, `apiDownload`, `fotoUrl`, auth headers, 401 redirect |
+| Types | `lib/types.ts` | Listo — Interfaces TS para todos los modelos del API |
+
+#### Tabs del Detalle de Informe (7 secciones GES-FO-016):
+
+| Tab | Sección | Funcionalidad |
+|-----|---------|--------------|
+| S1 | Información General | Card read-only con datos del contrato y periodo |
+| S2 | Hitos | Tabla de snapshots con semáforo, indicadores avance, botón "Actualizar Snapshot" |
+| S3 | Situaciones Problemáticas | Textarea editable con autoguardado |
+| S4 | Plan de Acción | Tabla interactiva con agregar/editar acciones, estados editables inline |
+| S5 | Actividades No Previstas | Tabla read-only de ANP del contrato + narrativa editable |
+| S6 | Comentarios Especialistas | 4 textareas (técnico, SST, ambiental, social) con guardado individual |
+| S7 | Registro Fotográfico | Panel dual: banco de fotos (seleccionar) + fotos del informe (reordenar, quitar) |
 
 ### 4. Documentación
 
@@ -86,6 +137,16 @@ El proyecto está en una **fase de scaffolding inicial**. Se creó la estructura
 | `docs/*.xlsx` | 5 plantillas Excel de referencia (formatos Findeter) |
 | `docs/*.pdf` | 4 documentos PDF de referencia (contrato, informes ejemplo) |
 
+### 5. Migración y Seed Data
+
+- **`backend/alembic/versions/001_initial.py`** — Migración inicial que crea las 10 tablas con tipos, FKs, enums, y server_defaults
+- **`backend/app/scripts/seed.py`** — Script ejecutable con `python -m app.scripts.seed`:
+  - 7 usuarios (uno por rol, password: `Ingecon2026!`)
+  - 1 contrato de interventoría (FDT-ATBOSA-I-028-2025)
+  - 4 contratos de obra (CTO-703 a CTO-706)
+  - 64 hitos (20 por parque vecinal, 12 por parque de bolsillo)
+  - 22 actividades no previstas (NP-01 a NP-22)
+
 ---
 
 ## Lo Que FALTA Por Hacer
@@ -94,68 +155,69 @@ El proyecto está en una **fase de scaffolding inicial**. Se creó la estructura
 
 #### A. Infraestructura Pendiente (Prioridad: ALTA)
 
-- [ ] **Generar migración Alembic inicial** — `alembic revision --autogenerate -m "initial"` y aplicarla
-- [ ] **Crear script de seed** — Poblar la DB con: contrato de interventoría FDT-ATBOSA-I-028-2025, los 4 contratos de obra, los 20 hitos de cada parque (La Esperanza y Piamonte), usuarios iniciales (7 roles)
-- [ ] **Proteger endpoints con autenticación JWT** — Los endpoints actuales NO verifican el token. Falta middleware/dependency `get_current_user`
+- [x] ~~Generar migración Alembic inicial~~
+- [x] ~~Crear script de seed~~
+- [x] ~~Proteger endpoints con autenticación JWT~~ — `deps.py` con `get_current_user` y `require_roles`
+- [ ] **Ejecutar migración y seed en Docker** — Levantar, aplicar `alembic upgrade head`, correr seed
 - [ ] **Tests backend** — 0 tests escritos. Carpeta `tests/` vacía
 
 #### B. Backend — Módulos Faltantes (Prioridad: ALTA)
 
-- [ ] **Modelo `PlanAccion`** — Sección 4 del informe: actividad, responsable, fecha, estado (pendiente/en_proceso/cumplido/vencido)
-- [ ] **Modelo `RegistroFotografico`** — Sección 7: foto (S3/blob), pie de foto, geolocalización, fecha, vinculación a informe
-- [ ] **Modelo `ActividadNoPrevista`** — Ítems NP-01 a NP-22 con código, descripción, fechas
-- [ ] **Endpoint de Curva S** — Generar datos de curva S a partir de avance semanal acumulado
-- [ ] **Motor de exportación Excel** — **LA funcionalidad más crítica**. Generar .xlsx pixel-perfect del formato GES-FO-016 con logos, celdas combinadas, colores, fórmulas funcionales. Usar openpyxl (ya está en dependencies)
+- [x] ~~Modelo `AccionPlan` (Plan de Acción S4)~~
+- [x] ~~Modelo `Foto` + `InformeFoto` (Registro Fotográfico S7)~~
+- [x] ~~Modelo `SnapshotHito` (Snapshots inmutables S2)~~
+- [x] ~~Modelo `ActividadNoPrevista` (NP-01 a NP-22)~~
+- [x] ~~Servicio de generación automática de informes~~
+- [x] ~~Endpoints de edición por sección~~
+- [x] ~~Endpoints de transición de estado~~
+- [x] ~~Endpoints de banco de fotos~~
+- [x] ~~Endpoints de plan de acción acumulativo~~
+- [x] ~~Motor de exportación Excel GES-FO-016~~ — `backend/app/services/excel_export.py` + endpoint `GET /api/v1/informes/semanales/{id}/exportar`
+- [x] ~~Endpoint de Curva S~~ — `GET /api/v1/informes/semanales/curva-s/{contrato_obra_id}` + `GET /api/v1/dashboard/curva-s`
 - [ ] **Exportación PDF** — A partir del Excel o renderizado directo
 - [ ] **CRUD Usuarios** — Solo existe login, no hay endpoint para crear/listar/editar usuarios
-- [ ] **Roles y permisos** — Verificación de rol en cada endpoint según la matriz de permisos
+- [ ] **Roles y permisos por endpoint** — Los guards existen pero no están aplicados en todos los endpoints
 
-#### C. Frontend — Funcionalidad Real (Prioridad: ALTA)
+#### C. Frontend — Funcionalidad Faltante (Prioridad: ALTA)
 
-- [ ] **Conectar Dashboard al API** — Reemplazar datos hardcoded por llamadas reales a `/api/v1/dashboard`
-- [ ] **Conectar Contratos al API** — Reemplazar array estático por datos reales
-- [ ] **Página de detalle de contrato** — `/contratos/[id]` con hitos, cronograma, curva S
-- [ ] **Formulario de informe semanal** — Las 7 secciones editables del GES-FO-016
-- [ ] **Sección 3 — Editor de texto enriquecido** — Para Situaciones Problemáticas
-- [ ] **Sección 7 — Upload de fotos** — Con metadata (geolocalización, fecha)
-- [ ] **Botón de exportar Excel/PDF** — Llamar al backend y descargar archivo
-- [ ] **Login page** — Formulario de autenticación
-- [ ] **Protección de rutas** — Redirigir a login si no hay token
+- [x] ~~Conectar Informes al API~~ — Lista + detalle con 7 tabs
+- [x] ~~Formulario de informe semanal completo (7 secciones)~~
+- [x] ~~Badges de estado con colores~~
+- [x] ~~Upload de fotos y selector dual~~
+- [x] ~~Conectar Dashboard al API~~ — KPI cards dinámicos, hitos retrasados, avance general
+- [x] ~~Conectar Contratos al API~~ — Tabla dinámica con datos reales del backend
+- [x] ~~Página de detalle de contrato~~ — `/contratos/[id]` con info del contrato y tabla de hitos
+- [x] ~~Botón de exportar Excel~~ — Conectado al endpoint de exportación
+- [x] ~~Login page~~ — Formulario email/password con JWT
+- [x] ~~Protección de rutas~~ — AuthProvider + AppShell + redirect a /login + 401 interception
+- [x] ~~Componente Curva S~~ — Recharts LineChart en Dashboard y Detalle de Contrato
 
 #### D. IA — Fase 1 (Prioridad: MEDIA)
 
-- [ ] **5.1 Generación de narrativas** — Integrar API de Claude/GPT para generar borradores de secciones 3, 4 y 6 del informe semanal
-- [ ] **5.2 Auditor de consistencia** — Motor de reglas de validación (30+ reglas) que se ejecuta antes de exportar
+- [ ] **5.1 Generación de narrativas** — Integrar API de Claude para generar borradores de secciones 3, 4 y 6
+- [ ] **5.2 Auditor de consistencia** — Motor de reglas de validación (30+ reglas) pre-exportación
 
 ### Fase 2 — Campo
 
-- [ ] **Modelo `InformeDiario`** — Formato FR-INT-13-10 completo
-- [ ] **Modelo `ChequeoSST`** — Formato FDLBOSALIC 006-2024 (6 componentes, 32 ítems)
-- [ ] **Modelo `ChequeoAmbiental`** — Formato GES-FO-082 v2 (4 semanas + consolidado mensual)
-- [ ] **Modelo `ChequeoSocial`** — Formato CTO 703 (10 secciones)
-- [ ] **Exportación Excel** de cada formato (pixel-perfect con los templates de `docs/`)
-- [ ] **App móvil / PWA** — Con soporte offline y sincronización
-- [ ] **5.3 Alertas predictivas** — Regresión sobre avance semanal
-- [ ] **5.4 Autocompletado de chequeos** — Precarga de valores anteriores
+- [ ] Modelo `InformeDiario` — Formato FR-INT-13-10
+- [ ] Modelo `ChequeoSST` — Formato FDLBOSALIC 006-2024
+- [ ] Modelo `ChequeoAmbiental` — Formato GES-FO-082 v2
+- [ ] Modelo `ChequeoSocial` — Formato CTO 703
+- [ ] Exportación Excel de cada formato
+- [ ] App móvil / PWA con soporte offline
+- [ ] 5.3 Alertas predictivas, 5.4 Autocompletado de chequeos
 
 ### Fase 3 — Financiero
 
-- [ ] **Modelo `ActaCorte`** — Número, periodo, valor bruto, retención, valor neto, estado
-- [ ] **Modelo `Poliza`** — Tipo amparo, monto, vigencia, alertas de vencimiento
-- [ ] **Control presupuestal** — Balance por contrato de obra
-- [ ] **Gestión de comunicaciones** — Correspondencia, consecutivos, trazabilidad
-- [ ] **5.5 Mayores cantidades** — Comparador presupuesto vs ejecutado
-- [ ] **5.6 Clasificación de fotos** — Modelo de visión para etiquetar fotos automáticamente
+- [ ] Modelo `ActaCorte`, `Poliza`
+- [ ] Control presupuestal
+- [ ] Gestión de comunicaciones
+- [ ] 5.5 Mayores cantidades, 5.6 Clasificación de fotos
 
 ### Fase 4 — Valor Agregado
 
-- [ ] Mapa interactivo de frentes de obra
-- [ ] Módulo de comités (agendas, actas, compromisos)
-- [ ] Control de personal en obra
-- [ ] Gestión de PQRS
-- [ ] 5.7 Actas de comité automáticas
-- [ ] 5.8 Chatbot contractual (RAG)
-- [ ] 5.9 Análisis de sentimiento PQRS
+- [ ] Mapa interactivo, Comités, Personal en obra, PQRS
+- [ ] 5.7 Actas de comité, 5.8 Chatbot RAG, 5.9 Análisis PQRS
 
 ---
 
@@ -163,13 +225,18 @@ El proyecto está en una **fase de scaffolding inicial**. Se creó la estructura
 
 | Decisión | Detalle |
 |----------|---------|
-| Stack Backend | **FastAPI + SQLAlchemy 2.0 + Alembic + PostgreSQL** |
+| Stack Backend | **FastAPI + SQLAlchemy 2.0 (Mapped) + Alembic + PostgreSQL** |
 | Stack Frontend | **Next.js 16 + React 19 + Tailwind CSS 4** |
 | Auth | **JWT con bcrypt** (python-jose + passlib) |
 | Excel Engine | **openpyxl** (ya en dependencies) |
 | Contenedores | **Docker Compose** con 3 servicios (db, backend, frontend) |
 | API versioning | `/api/v1/` como prefijo |
 | Esquema DB | Spanish column names matching domain terminology |
+| Informe — Generación | Auto-genera cada lunes como borrador con datos pre-llenados |
+| Informe — Edición | Cada residente edita su sección directamente en el informe |
+| Informe — Hitos | Viven en módulo Contratos, informe toma snapshot inmutable al generarse |
+| Informe — Fotos | Se suben durante la semana a un banco, luego se seleccionan para el informe |
+| Informe — Plan Acción | Acumulativo: un registro por acción, query dinámico arrastra pendientes |
 
 ## Decisiones Pendientes
 
@@ -184,13 +251,11 @@ El proyecto está en una **fase de scaffolding inicial**. Se creó la estructura
 
 ## Próximos Pasos Recomendados (en orden)
 
-1. **Migración Alembic + Seed data** — Sin esto la app no funciona
-2. **Auth middleware** — Proteger los endpoints existentes
-3. **Conectar frontend al API** — Reemplazar datos hardcoded
-4. **Página de detalle de contrato** con hitos y curva S
-5. **Formulario completo del informe semanal** (las 7 secciones)
-6. **Motor de exportación Excel GES-FO-016** — La funcionalidad más importante del proyecto
-7. **Tests** — Al menos para los endpoints CRUD y el motor de exportación
+1. **Ejecutar migración + seed en Docker** — `alembic upgrade head` + `python -m app.scripts.seed`
+2. **Exportación PDF** — A partir del Excel generado
+3. **Tests** — Al menos para endpoints CRUD y el motor de exportación
+4. **CRUD Usuarios** — Endpoint para crear/listar/editar usuarios
+5. **Roles y permisos** — Aplicar guards en todos los endpoints
 
 ---
 
@@ -200,6 +265,12 @@ El proyecto está en una **fase de scaffolding inicial**. Se creó la estructura
 # Opción 1: Docker Compose (recomendado)
 docker-compose up --build
 
+# Aplicar migración
+docker exec -it ingecon-backend alembic upgrade head
+
+# Ejecutar seed
+docker exec -it ingecon-backend python -m app.scripts.seed
+
 # Opción 2: Manual
 # Terminal 1 — Base de datos
 docker run -e POSTGRES_USER=ingecon -e POSTGRES_PASSWORD=ingecon -e POSTGRES_DB=ingecon_findeter -p 5432:5432 postgres:16-alpine
@@ -207,6 +278,8 @@ docker run -e POSTGRES_USER=ingecon -e POSTGRES_PASSWORD=ingecon -e POSTGRES_DB=
 # Terminal 2 — Backend
 cd backend
 pip install -e .
+alembic upgrade head
+python -m app.scripts.seed
 uvicorn app.main:app --reload --port 8000
 
 # Terminal 3 — Frontend
@@ -219,6 +292,18 @@ npm run dev
 - Frontend: http://localhost:3000
 - DB: postgresql://ingecon:ingecon@localhost:5432/ingecon_findeter
 
+### Credenciales de prueba (seed)
+
+| Email | Password | Rol |
+|-------|----------|-----|
+| director@ingecon.co | Ingecon2026! | Director de Interventoría |
+| tecnico@ingecon.co | Ingecon2026! | Residente Técnico |
+| sst@ingecon.co | Ingecon2026! | Residente SST |
+| ambiental@ingecon.co | Ingecon2026! | Residente Ambiental |
+| social@ingecon.co | Ingecon2026! | Residente Social |
+| admin@ingecon.co | Ingecon2026! | Residente Administrativo |
+| supervisor@findeter.gov.co | Ingecon2026! | Supervisor |
+
 ---
 
 ## Archivos Clave para Contexto
@@ -228,7 +313,11 @@ npm run dev
 | Requisitos completos del negocio | `docs/app-base.md` |
 | Instrucciones para IA | `CLAUDE.md` |
 | Estado actual del proyecto | `PROGRESS.md` (este archivo) |
-| Modelo de datos | `backend/app/models/contrato.py` + `informe.py` + `usuario.py` |
+| Modelo de datos | `backend/app/models/*.py` (10 modelos) |
+| Migración | `backend/alembic/versions/001_initial.py` |
+| Seed data | `backend/app/scripts/seed.py` |
+| Servicio de generación | `backend/app/services/informe_generator.py` |
+| Motor de exportación Excel | `backend/app/services/excel_export.py` |
 | Endpoints API | `backend/app/api/v1/endpoints/*.py` |
 | Páginas frontend | `frontend/src/app/*/page.tsx` |
 | Template Excel más crítico | `docs/INFORME SEMANAL N° 28 CTO 703.xlsx` |

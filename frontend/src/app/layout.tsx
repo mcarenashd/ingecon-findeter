@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Sidebar from "@/components/Sidebar";
+import { AuthProvider } from "@/lib/auth";
+import AppShell from "@/components/AppShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,10 +17,9 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className="antialiased">
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="flex-1 p-6 overflow-auto">{children}</main>
-        </div>
+        <AuthProvider>
+          <AppShell>{children}</AppShell>
+        </AuthProvider>
       </body>
     </html>
   );
