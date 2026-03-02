@@ -126,6 +126,22 @@ export default function InformeDetallePage() {
     }
   };
 
+  const handleExportPDF = async () => {
+    try {
+      const blob = await apiDownload(
+        `/api/v1/informes/semanales/${informeId}/pdf`
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `GES-FO-016_Informe_${informe?.numero_informe}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("Error al exportar el informe a PDF.");
+    }
+  };
+
   if (!informe) {
     return (
       <div className="flex items-center justify-center h-64 text-slate-400">
@@ -162,6 +178,12 @@ export default function InformeDetallePage() {
             className="border border-slate-300 text-slate-700 px-3 py-1.5 rounded-lg text-sm hover:bg-slate-50"
           >
             Exportar Excel
+          </button>
+          <button
+            onClick={handleExportPDF}
+            className="border border-red-300 text-red-700 px-3 py-1.5 rounded-lg text-sm hover:bg-red-50"
+          >
+            Descargar PDF
           </button>
           {informe.estado === "borrador" && (
             <button

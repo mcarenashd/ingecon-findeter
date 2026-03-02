@@ -201,6 +201,36 @@ def test_exportar_excel(client, director_token, director_user, db):
     assert len(res.content) > 1000  # Valid xlsx file
 
 
+def test_exportar_pdf(client, director_token, director_user, db):
+    import shutil
+
+    # Skip if LibreOffice is not installed
+    if not shutil.which("soffice"):
+        import pytest
+        pytest.skip("LibreOffice not installed")
+
+    obra = _setup_contrato_con_hitos(db)
+    create_res = client.post(
+        "/api/v1/informes/semanales/generar",
+        headers=auth_header(director_token),
+        json={
+            "contrato_obra_id": obra.id,
+            "semana_inicio": "2025-03-03",
+            "semana_fin": "2025-03-09",
+        },
+    )
+    informe_id = create_res.json()["id"]
+
+    res = client.get(
+        f"/api/v1/informes/semanales/{informe_id}/pdf",
+        headers=auth_header(director_token),
+    )
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    assert len(res.content) > 5000  # Valid PDF file
+    assert res.content[:5] == b"%PDF-"  # PDF magic bytes
+
+
 def test_curva_s_por_contrato(client, director_token, director_user, db):
     obra = _setup_contrato_con_hitos(db)
     res = client.get(

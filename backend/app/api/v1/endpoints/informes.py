@@ -442,6 +442,34 @@ def eliminar_foto_informe(
     db.commit()
 
 
+# --- Exportación PDF ---
+
+
+@router.get("/semanales/{informe_id}/pdf")
+def exportar_informe_pdf(informe_id: int, db: Session = Depends(get_db)):
+    informe = _get_informe_or_404(informe_id, db)
+
+    from app.services.pdf_export import generate_informe_pdf
+
+    try:
+        buffer = generate_informe_pdf(db=db, informe=informe)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    contrato = informe.contrato_obra
+    filename = (
+        f"Informe_Semanal_No{informe.numero_informe}"
+        f"_CTO_{contrato.numero}"
+        f"_{informe.semana_inicio.isoformat()}.pdf"
+    )
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 # --- Exportación Excel ---
 
 
